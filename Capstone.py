@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 # download data
 tickers = ["AAPL", "MSFT", "NVDA", "JNJ", "SPY"]
-prices = yf.download(tickers, start="2015-01-01", end="2026-03-26")["Close"].dropna()
+prices = yf.download(tickers, start="2010-01-01", end="2026-03-26")["Close"].dropna()
 log_returns = np.log(prices / prices.shift(1)).dropna()
 
 # build features
@@ -60,29 +60,23 @@ for ticker in tickers:
     print(classification_report(test["target"], preds, target_names=["Down", "Up"], zero_division=0))
 
     # garch
-    print(f"--- GARCH(1,1) ---")
+    print(f"--- GARCH(2,1) ---")
     test_dates = test.index
     ret_scaled = log_returns[ticker] * 100
     garch_vol = pd.Series(index=test_dates, dtype=float)
 
     for day in test_dates:
         data = ret_scaled.loc[:day].iloc[:-1]
-        gm = arch_model(data, vol="Garch", p=1, q=1, mean="Constant", dist="normal")
+        gm = arch_model(data, vol="Garch", p=2, q=1, mean="Constant", dist="normal")
         res = gm.fit(disp="off", show_warning=False)
         fcast = res.forecast(horizon=1)
         garch_vol.loc[day] = np.sqrt(fcast.variance.values[-1, 0])
 
-    # print garch params from final fit
-    print(f"omega:  {res.params['omega']:.6f}")
-    print(f"alpha:  {res.params['alpha[1]']:.4f}")
-    print(f"beta:   {res.params['beta[1]']:.4f}")
-    print(f"Mean forecasted volatility: {garch_vol.mean():.4f}%")
-
     # trading strategy
     actual_ret = log_returns[ticker].loc[test_dates]
     signal = pd.Series(0.0, index=test_dates)
-    signal[proba > 0.55] = 1.0
-    signal[proba < 0.45] = -1.0
+    signal[proba > 0.52] = 1.0
+    signal[proba < 0.48] = -1.0
 
     inv_vol = 1.0 / garch_vol
     weight = inv_vol / inv_vol.mean()
@@ -94,17 +88,12 @@ for ticker in tickers:
     tp = prices[ticker].loc[TEST_START:]
     bh_return = (tp.iloc[-1] - tp.iloc[0]) / tp.iloc[0]
 
-    print(f"\n--- Strategy vs Benchmark ---")
-    print(f"Strategy return: {cum_strategy.iloc[-1]*100:+.2f}%")
-    print(f"Buy&Hold return: {bh_return*100:+.2f}%")
-
     results[ticker] = {
         "acc": acc, "auc": auc,
         "strat_return": cum_strategy.iloc[-1],
         "bh_return": bh_return,
         "cum_strategy": cum_strategy,
-        "cum_buyhold": cum_buyhold,
-    }
+        "cum_buyhold": cum_buyhold,}
 
 # plot
 fig, axes = plt.subplots(3, 2, figsize=(14, 10))
