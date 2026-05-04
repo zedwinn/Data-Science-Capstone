@@ -42,9 +42,6 @@ for ticker in tickers:
     train = df.loc[:TRAIN_END]
     test = df.loc[TEST_START:]
 
-    print(f"Train: {train.index[0].date()} to {train.index[-1].date()} ({len(train)} days)")
-    print(f"Test:  {test.index[0].date()} to {test.index[-1].date()} ({len(test)} days)")
-
     # logistic regression
     model = LogisticRegression(max_iter=1000, random_state=42)
     model.fit(train[features], train["target"])
@@ -54,13 +51,12 @@ for ticker in tickers:
     acc = accuracy_score(test["target"], preds)
     auc = roc_auc_score(test["target"], proba)
 
-    print(f"\n--- Logistic Regression ---")
+    print(f"\n--- Logistic Regression summary ---")
     print(f"Accuracy: {acc:.4f}")
     print(f"ROC-AUC:  {auc:.4f}")
     print(classification_report(test["target"], preds, target_names=["Down", "Up"], zero_division=0))
 
     # garch
-    print(f"--- GARCH(2,1) ---")
     test_dates = test.index
     ret_scaled = log_returns[ticker] * 100
     garch_vol = pd.Series(index=test_dates, dtype=float)
@@ -93,7 +89,11 @@ for ticker in tickers:
         "strat_return": cum_strategy.iloc[-1],
         "bh_return": bh_return,
         "cum_strategy": cum_strategy,
-        "cum_buyhold": cum_buyhold,}
+        "cum_buyhold": cum_buyhold,
+        "alpha1": res.params['alpha[1]'],
+        "alpha2": res.params['alpha[2]'],
+        "beta": res.params['beta[1]'],
+        "mean_vol": garch_vol.mean(),}
 
 # plot
 fig, axes = plt.subplots(3, 2, figsize=(14, 10))
@@ -130,12 +130,17 @@ plt.ylabel("Accuracy")
 plt.title("Model Accuracy")
 plt.savefig("model_accuracy.png", dpi=150)
 
+# garch summary
+print("\n--- Garch summary ---")
+print(f"\n{'Ticker':<8} {'alpha1':>8} {'alpha2':>8} {'beta':>8} {'Persist':>8} {'Mean Vol':>10}")
+for t in tickers:
+    r = results[t]
+    persistence = r['alpha1'] + r['alpha2'] + r['beta']
+    print(f"{t:<8} {r['alpha1']:>8.4f} {r['alpha2']:>8.4f} {r['beta']:>8.4f} {persistence:>8.4f} {r['mean_vol']:>8.2f}%")
+
 # summary table
-print(f"\n{'='*70}")
-print("SUMMARY")
-print(f"{'='*70}")
+print("\n--- Summary table ---")
 print(f"{'Ticker':<8} {'Accuracy':>8} {'AUC':>8} {'Strategy':>10} {'Buy&Hold':>10}")
-print("-" * 50)
 for t in tickers:
     r = results[t]
     print(f"{t:<8} {r['acc']:>8.3f} {r['auc']:>8.3f} {r['strat_return']*100:>+9.1f}% {r['bh_return']*100:>+9.1f}%")
