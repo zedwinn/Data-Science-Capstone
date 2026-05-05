@@ -34,10 +34,6 @@ TEST_START = "2024-03-25"
 results = {}
 
 for ticker in tickers:
-    print(f"\n{'='*50}")
-    print(f"{ticker}")
-    print(f"{'='*50}")
-
     df = build_features(log_returns[ticker])
     train = df.loc[:TRAIN_END]
     test = df.loc[TEST_START:]
